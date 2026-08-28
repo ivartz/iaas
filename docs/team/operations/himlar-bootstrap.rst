@@ -11,17 +11,15 @@ loc=[**bgo|osl|test01|test02|local1|local2|local3|...**]
 Prerequisites
 -------------
 
-- A login node (with an up-to-date */opt/[himlar|repo]* hiearchy) which is
-  maintained by `Puppet`
+- A physical login node with console (remote or local)
 
-- A SSH key pair with the private key in /root/.ssh and the public in :file:`hieradata/${{loc}}/modules/accounts.yaml`
+- SSH and root access to the login node
 
-- No management-node installed (`controller`)
+- Hieradata for the new location and node files for login-01, controller-01 and admin-01
 
-- *hieradata/${loc}/common.yaml*, *hieradata/common/common.yaml*, *hieradata/nodes/${loc}/...*
-  etc. are populated with relevant data
+- Check that MFA on login is disabled for this location
 
-- puppet is disabled on new nodes:
+- (optional) puppet is disabled on new nodes:
 
   ensure **$loc/modules/puppet.yaml** includes *puppet::runmode: 'none'*
 
@@ -32,17 +30,50 @@ Prerequisites
   have CPU virtualization extentions enabled in BIOS
 
 .. IMPORTANT::
-   When doing a complete reinstall make sure `peerdns: 'no'`
-   is in the network configuration for the nodes controller-01 and admin-01.
 
-   Also make sure gateway and DNS points to the login node or wherever there is
-   a connection out and/or a resolverreachable. This might require toggling
+   Make sure gateway and DNS points to the login node or wherever there is
+   a connection out and/or a resolver reachable. This might require toggling
    of data in 'common.yaml' or the relevant node files.
 
    This should be manipulated on the code activated on the login node from where
    the bootstrap process is initialized befoe the run. Changes after installation
    of the controller node should be activated on the node itself
    ("/opt/himlar/hieradata").
+
+Bootstrap login
+---------------
+
+1. Install git and clone the himlar repo in :file:`/opt`
+
+2. Bootstrap puppet::
+
+    cd /opt/himlar
+    provision/puppetbootstrap.sh
+
+3. Install puppet modules for the puppet env used on login (or the first node). If we
+   we :file:`production` we do not need to set puppet environment. Otherwise select the correct
+   puppet env for the first node and run::
+
+    HIMLAR_PUPPET_ENV=<puppet env> provision/puppetmodules.sh
+
+   If you need to redeploy the puppet modules for another puppet env use::
+
+    HIMLAR_DEPLOYMENT=redeploy HIMLAR_PUPPET_ENV=<puppet env> provision/puppetmodules.sh
+
+4. Run puppet. We should first run a kickstart run. If we want to do a dry-run first we can add
+   :file:`--noop` to the puppet command in :file:`provision/puppetrun.sh`::
+
+    FACTER_is_installer=true FACTER_RUNMODE=kickstart HIMLAR_PUPPET_ENV=<puppet env> HIMLAR_CERTNAME=<fqdn> provsion/puppetrun.sh
+
+  The domain part of fqdn be the same as :file:`domain_mgmt` in this location.
+  After this run check that the network config for the public interface is correct and restart
+  NetworkManager. If you loose access use console to fix the config.
+
+  Run a normal puppet run and make sure all the users and ssh keys have been added::
+
+    HIMLAR_PUPPET_ENV=<puppet env> provsion/puppetrun.sh
+
+  Reboot the server and check that you now can login with the ssh keys in himlar
 
 Procedure
 ---------
